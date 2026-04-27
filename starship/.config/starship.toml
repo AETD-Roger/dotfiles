@@ -1,0 +1,25 @@
+# Starship config — run `starship preset -l` to browse other presets,
+# then `starship preset <n> -o ~/.config/starship.toml` to swap one in.
+add_newline = true
+
+format = """
+[╭─](bold green)$username$hostname$directory$git_branch$git_status$cmd_duration
+[╰─](bold green)$character """
+
+[character]
+success_symbol = "[➜](bold green)"
+error_symbol   = "[➜](bold red)"
+
+[directory]
+truncation_length = 3
+truncate_to_repo  = true
+style             = "bold cyan"
+
+[git_branch]
+symbol = " "
+style  = "bold purple"
+
+[cmd_duration]
+min_time = 2000
+format   = " took [$duration]($style) "
+style    = "yellow"
