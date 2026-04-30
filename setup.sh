@@ -24,7 +24,7 @@
 set -euo pipefail
 
 # ============ EDIT THESE ============
-GITHUB_USER="your-username"
+GITHUB_USER="AETD-Roger"
 DOTFILES_REPO="dotfiles"
 DOTFILES_DIR="$HOME/dotfiles"
 STOW_PACKAGES=(zsh nvim tmux fastfetch starship)
