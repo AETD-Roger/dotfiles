@@ -1,0 +1,41 @@
+# Taps
+tap "homebrew/bundle"
+
+# ===== Formulae =====
+brew "bat"
+brew "eza"
+brew "fastfetch"
+brew "fd"
+brew "ffmpeg"
+brew "fzf"
+brew "gh"
+brew "git"
+brew "mosh"
+brew "neovim"
+brew "node@22"
+brew "ripgrep"
+brew "starship"
+brew "stow"
+brew "tmux"
+brew "yt-dlp"
+brew "zoxide"
+
+# ===== Casks =====
+cask "chatgpt"
+cask "claude"
+cask "codex"
+cask "displaylink"
+cask "elgato-camera-hub"
+cask "ghostty"
+cask "google-chrome"
+cask "google-drive"
+cask "maccy"
+cask "obsidian"
+cask "slack"
+cask "telegram"
+cask "visual-studio-code"
+cask "vlc"
+cask "wireguard"
+
+# ===== Fonts =====
+cask "font-jetbrains-mono-nerd-font"
