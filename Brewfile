@@ -35,7 +35,6 @@ cask "slack"
 cask "telegram"
 cask "visual-studio-code"
 cask "vlc"
-cask "wireguard"
 
 # ===== Fonts =====
 cask "font-jetbrains-mono-nerd-font"
