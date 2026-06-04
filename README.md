@@ -4,12 +4,25 @@ Cross-platform dotfiles and machine bootstrap for macOS and Linux (Debian/Ubuntu
 
 ## Install
 
-```bash
-# macOS — git comes with Xcode CLI tools
-git clone https://github.com/AETD-Roger/dotfiles.git ~/dotfiles
-cd ~/dotfiles && chmod +x setup.sh && ./setup.sh
+### macOS (fresh Mac — no git required)
 
-# Linux (Debian/Ubuntu)
+```bash
+curl -L https://github.com/AETD-Roger/dotfiles/archive/main.tar.gz | tar xz
+mv dotfiles-main ~/dotfiles
+cd ~/dotfiles && chmod +x setup.sh && ./setup.sh
+```
+
+The script will install Xcode CLI tools, Homebrew, and everything else automatically. Once complete, re-initialize the repo so you can track future changes:
+
+```bash
+cd ~/dotfiles
+git init && git remote add origin https://github.com/AETD-Roger/dotfiles.git
+git fetch && git reset origin/main
+```
+
+### Linux (Debian/Ubuntu)
+
+```bash
 sudo apt install git
 git clone https://github.com/AETD-Roger/dotfiles.git ~/dotfiles
 cd ~/dotfiles && chmod +x setup.sh && ./setup.sh
