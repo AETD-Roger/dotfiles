@@ -1,5 +1,6 @@
 # Path
 export PATH="$HOME/.local/bin:$PATH"
+[[ -d /opt/homebrew/opt/node@22/bin ]] && export PATH="/opt/homebrew/opt/node@22/bin:$PATH"
 
 # Oh My Zsh
 export ZSH="$HOME/.oh-my-zsh"

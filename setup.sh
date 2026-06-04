@@ -46,6 +46,8 @@ if [[ "$OS" == "Darwin" ]]; then
   brew bundle --file="$DOTFILES_DIR/Brewfile" || warn "Some Brewfile items may have failed"
 
   # ---------- npm CLI tools ----------
+  # node@22 is keg-only; ensure it's on PATH
+  export PATH="/opt/homebrew/opt/node@22/bin:$PATH"
   log "Installing Claude Code CLI and Codex CLI"
   npm install -g @anthropic-ai/claude-code @openai/codex
 
