@@ -27,7 +27,10 @@ log "Detected OS: $OS"
 # ──────────────────────────────────────────────
 # Section picker
 # ──────────────────────────────────────────────
-declare -A RUN
+# Track skipped sections as a space-padded string (bash 3.2 safe — macOS
+# ships bash 3.2, which has no associative arrays). Sections default to on;
+# a section is "skipped" only if its key appears in $SKIPPED.
+SKIPPED=" "
 
 if [[ "$OS" == "Darwin" ]]; then
   SECTIONS=(
@@ -49,12 +52,6 @@ else
     "dotfiles:Stow dotfiles"
   )
 fi
-
-# Default all sections to on
-for entry in "${SECTIONS[@]}"; do
-  key="${entry%%:*}"
-  RUN[$key]=1
-done
 
 echo
 echo -e "${BOLD}Select which sections to run:${NC}"
@@ -79,7 +76,7 @@ if [[ -n "$skip_input" ]]; then
       entry="${SECTIONS[$idx]}"
       key="${entry%%:*}"
       label="${entry#*:}"
-      RUN[$key]=0
+      SKIPPED="$SKIPPED$key "
       echo -e "  ${YELLOW}Skipping:${NC} $label"
     fi
   done
@@ -87,8 +84,8 @@ fi
 
 echo
 
-# Helper to check if a section is enabled
-run() { [[ "${RUN[$1]:-0}" -eq 1 ]]; }
+# Helper to check if a section is enabled (true unless it was toggled off)
+run() { [[ "$SKIPPED" != *" $1 "* ]]; }
 
 # ──────────────────────────────────────────────
 # macOS
