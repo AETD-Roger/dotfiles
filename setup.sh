@@ -114,10 +114,51 @@ if [[ "$OS" == "Darwin" ]]; then
     ok "Homebrew already installed"
   fi
 
-  # ---------- Brewfile ----------
+  # ---------- Brewfile (with interactive package picker) ----------
   if run packages; then
-    log "Installing packages from Brewfile"
-    brew bundle --file="$DOTFILES_DIR/Brewfile" || warn "Some Brewfile items may have failed"
+    # Parse selectable entries (brew/cask lines) from the Brewfile
+    PKG_KIND=(); PKG_NAME=(); PKG_ON=()
+    while IFS= read -r line; do
+      PKG_KIND+=("${line%% *}")
+      PKG_NAME+=("$(echo "$line" | sed -E 's/^(brew|cask) "([^"]+)".*/\2/')")
+      PKG_ON+=(1)   # default everything on
+    done < <(grep -E '^(brew|cask) ' "$DOTFILES_DIR/Brewfile")
+
+    echo
+    echo -e "${BOLD}Select packages to install:${NC}"
+    echo -e "(all selected by default — enter numbers to toggle off, then press Enter)"
+    echo
+    echo -e "${BOLD}Formulae (CLI tools):${NC}"
+    for i in "${!PKG_NAME[@]}"; do
+      [[ "${PKG_KIND[$i]}" == "brew" ]] && echo -e "  ${GREEN}[$((i + 1))]${NC} ${PKG_NAME[$i]}"
+    done
+    echo
+    echo -e "${BOLD}Casks (apps & fonts):${NC}"
+    for i in "${!PKG_NAME[@]}"; do
+      [[ "${PKG_KIND[$i]}" == "cask" ]] && echo -e "  ${GREEN}[$((i + 1))]${NC} ${PKG_NAME[$i]}"
+    done
+    echo
+    echo -n "Toggle off (e.g. \"3 5 9\"), or press Enter to install all: "
+    read -r pkg_skip
+    for num in $pkg_skip; do
+      idx=$((num - 1))
+      if [[ $idx -ge 0 && $idx -lt ${#PKG_NAME[@]} ]]; then
+        PKG_ON[$idx]=0
+        echo -e "  ${YELLOW}Skipping:${NC} ${PKG_NAME[$idx]}"
+      fi
+    done
+    echo
+
+    # Build a filtered Brewfile (keep taps, drop deselected packages)
+    TMP_BREW=$(mktemp)
+    grep -E '^tap ' "$DOTFILES_DIR/Brewfile" >> "$TMP_BREW" 2>/dev/null
+    for i in "${!PKG_NAME[@]}"; do
+      [[ "${PKG_ON[$i]}" -eq 1 ]] && echo "${PKG_KIND[$i]} \"${PKG_NAME[$i]}\"" >> "$TMP_BREW"
+    done
+
+    log "Installing selected packages"
+    brew bundle --file="$TMP_BREW" || warn "Some Brewfile items may have failed"
+    rm -f "$TMP_BREW"
   fi
 
   # ---------- npm CLI tools ----------
