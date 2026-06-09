@@ -21,9 +21,8 @@ set positionlog         # reopen files at the last cursor position
 set zap                 # Ctrl-K deletes the selection in one stroke
 
 # ----- Syntax highlighting -----
-# Globs that match nothing are ignored, so this is safe on both platforms:
-#   macOS (Homebrew): /opt/homebrew/share/nano
-#   Linux (apt):      /usr/share/nano
-include "/opt/homebrew/share/nano/*.nanorc"
-include "/usr/share/nano/*.nanorc"
-include "/usr/share/nano/extra/*.nanorc"
+# No include lines here on purpose: nano errors out ("Mistakes in .nanorc")
+# if an include path's directory doesn't exist, and the syntax dir differs
+# per platform. Both platforms' global nanorc already loads the bundled
+# syntaxes automatically — /opt/homebrew/etc/nanorc on macOS, /etc/nanorc on
+# Debian/Ubuntu — so highlighting works without listing them again.
