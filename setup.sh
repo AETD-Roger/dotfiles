@@ -11,7 +11,7 @@ set -uo pipefail
 # ============ CONFIG ============
 DOTFILES_DIR="$(cd "$(dirname "$0")" && pwd)"
 GITHUB_USER="AETD-Roger"
-STOW_PACKAGES=(zsh nvim tmux fastfetch starship)
+STOW_PACKAGES=(zsh nvim tmux fastfetch starship nano)
 ERRORS=0
 # ================================
 
@@ -194,7 +194,7 @@ elif [[ "$OS" == "Linux" ]]; then
     log "Updating apt and installing base packages"
     sudo apt-get update -qq || warn "apt-get update failed"
     sudo apt-get install -y \
-      zsh git curl wget unzip stow tmux build-essential \
+      zsh git curl wget unzip stow tmux build-essential nano \
       ripgrep fd-find fzf bat \
       fontconfig software-properties-common ca-certificates gpg \
       || warn "Some apt packages may have failed"

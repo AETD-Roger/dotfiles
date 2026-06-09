@@ -1,0 +1,29 @@
+## nano config — stowed from dotfiles (needs nano 4.0+, i.e. the Homebrew/apt build)
+
+# ----- Editing -----
+set autoindent          # match indentation of the previous line on Enter
+set tabsize 4           # render a tab as 4 columns
+set tabstospaces        # insert spaces instead of a tab character
+set trimblanks          # strip trailing whitespace when soft-wrapping
+
+# ----- Interface -----
+set linenumbers         # show line numbers in the left margin
+set mouse               # click to move the cursor / select text
+set softwrap            # wrap long lines on screen instead of scrolling
+set constantshow        # always show the cursor position (line, col)
+set titlecolor brightwhite,blue
+set numbercolor cyan
+set selectedcolor brightwhite,magenta
+
+# ----- Behavior -----
+set historylog          # remember search-and-replace history between sessions
+set positionlog         # reopen files at the last cursor position
+set zap                 # Ctrl-K deletes the selection in one stroke
+
+# ----- Syntax highlighting -----
+# Globs that match nothing are ignored, so this is safe on both platforms:
+#   macOS (Homebrew): /opt/homebrew/share/nano
+#   Linux (apt):      /usr/share/nano
+include "/opt/homebrew/share/nano/*.nanorc"
+include "/usr/share/nano/*.nanorc"
+include "/usr/share/nano/extra/*.nanorc"
