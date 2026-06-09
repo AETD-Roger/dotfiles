@@ -39,7 +39,8 @@ if [[ "$OS" == "Darwin" ]]; then
     "git_config:Git configuration"
     "shell:Oh My Zsh + plugins"
     "dotfiles:Stow dotfiles"
-    "macos_defaults:macOS defaults (Dock, Finder, keyboard, screenshots)"
+    "macos_defaults:macOS defaults (Dock autohide, Finder, keyboard, screenshots)"
+    "dock:Dock layout (curated apps)"
     "power:Power & energy settings"
     "firewall:Firewall"
     "printers:Office printers"
@@ -430,6 +431,41 @@ if [[ "$OS" == "Darwin" ]]; then
 
     log "Restarting Dock and Finder to apply settings"
     killall Dock Finder SystemUIServer 2>/dev/null || true
+  fi
+
+  # ---------- Dock layout ----------
+  # Finder is always pinned at the far left by macOS and isn't managed here.
+  if run dock; then
+    if ! command -v dockutil &>/dev/null; then
+      warn "dockutil not found — skipping Dock layout (enable the packages section)"
+    else
+      log "Setting Dock layout"
+      DOCK_APPS=(
+        "/Applications/Ghostty.app"
+        "/Applications/Google Chrome.app"
+        "/Applications/Slack.app"
+        "/Applications/Visual Studio Code.app"
+        "/Applications/Obsidian.app"
+        "/Applications/Claude.app"
+      )
+      dockutil --no-restart --remove all &>/dev/null || warn "Failed to clear Dock"
+      for app in "${DOCK_APPS[@]}"; do
+        name="$(basename "$app" .app)"
+        if [[ -d "$app" ]]; then
+          dockutil --no-restart --add "$app" &>/dev/null \
+            && ok "  added $name" \
+            || warn "Failed to add $name to Dock"
+        else
+          warn "Not installed, skipping in Dock: $name"
+        fi
+      done
+      # Keep a Downloads stack on the right side of the divider
+      dockutil --no-restart --add "$HOME/Downloads" \
+        --view fan --display folder --sort dateadded &>/dev/null \
+        || warn "Failed to add Downloads stack"
+      killall Dock 2>/dev/null || true
+      ok "Dock configured"
+    fi
   fi
 
   # ---------- Firewall ----------

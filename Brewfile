@@ -3,6 +3,7 @@ tap "homebrew/bundle"
 
 # ===== Formulae =====
 brew "bat"
+brew "dockutil"
 brew "eza"
 brew "fastfetch"
 brew "fd"
