@@ -459,7 +459,11 @@ if [[ "$OS" == "Darwin" ]]; then
           warn "Not installed, skipping in Dock: $name"
         fi
       done
-      # Keep a Downloads stack on the right side of the divider
+      # Right side of the divider: Home folder, then Downloads.
+      # Both shown as folder icons (not content piles).
+      dockutil --no-restart --add "$HOME" \
+        --view list --display folder --sort name &>/dev/null \
+        || warn "Failed to add Home stack"
       dockutil --no-restart --add "$HOME/Downloads" \
         --view fan --display folder --sort dateadded &>/dev/null \
         || warn "Failed to add Downloads stack"
