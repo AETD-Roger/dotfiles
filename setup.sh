@@ -290,6 +290,22 @@ elif [[ "$OS" == "Linux" ]]; then
     fi
 
     # ---------- Neovim (need 0.10+ for AstroNvim v4) ----------
+    # Install a Neovim AppImage to /opt/nvim by extracting it — works without
+    # FUSE, which many headless/minimal servers lack. --appimage-extract does
+    # not need FUSE. Arg: path to the AppImage. Returns non-zero on failure.
+    extract_nvim_appimage() {
+      local img="$1" dir
+      dir=$(mktemp -d)
+      if ( cd "$dir" && "$img" --appimage-extract &>/dev/null ) \
+          && [[ -x "$dir/squashfs-root/AppRun" ]]; then
+        sudo rm -rf /opt/nvim
+        sudo mv "$dir/squashfs-root" /opt/nvim
+        sudo ln -sf /opt/nvim/AppRun /usr/local/bin/nvim
+        rm -rf "$dir"; return 0
+      fi
+      rm -rf "$dir"; return 1
+    }
+
     need_nvim=true
     if command -v nvim &>/dev/null; then
       # Suppress stderr — a FUSE-less AppImage prints "$FUSERMOUNT_PROG not
@@ -308,24 +324,21 @@ elif [[ "$OS" == "Linux" ]]; then
           # FUSE works — install the AppImage directly.
           sudo mv "$TMP_NVIM" /usr/local/bin/nvim && sudo chmod +x /usr/local/bin/nvim \
             && ok "Neovim installed" || warn "Failed to install Neovim"
+        elif extract_nvim_appimage "$TMP_NVIM"; then
+          ok "Neovim installed (extracted, FUSE-free)"
         else
-          # No FUSE (common on headless/minimal servers) — extract the AppImage
-          # so nvim runs without it. --appimage-extract does not need FUSE.
-          log "FUSE unavailable — extracting Neovim AppImage"
-          EXTRACT_DIR=$(mktemp -d)
-          ( cd "$EXTRACT_DIR" && "$TMP_NVIM" --appimage-extract &>/dev/null )
-          if [[ -x "$EXTRACT_DIR/squashfs-root/AppRun" ]]; then
-            sudo rm -rf /opt/nvim
-            sudo mv "$EXTRACT_DIR/squashfs-root" /opt/nvim
-            sudo ln -sf /opt/nvim/AppRun /usr/local/bin/nvim
-            ok "Neovim installed (extracted, FUSE-free)"
-          else
-            warn "Failed to install Neovim — AppImage extraction failed"
-          fi
-          rm -rf "$EXTRACT_DIR"
+          warn "Failed to install Neovim — AppImage extraction failed"
         fi
       else
-        warn "Failed to download Neovim"
+        # Download failed (e.g. GitHub unreachable on this network). If a raw
+        # AppImage is already installed, extract it so nvim works without FUSE
+        # instead of leaving the broken binary in place.
+        if [[ -f /usr/local/bin/nvim && ! -L /usr/local/bin/nvim ]] \
+            && extract_nvim_appimage /usr/local/bin/nvim; then
+          ok "Neovim download failed — extracted the existing AppImage instead"
+        else
+          warn "Failed to download Neovim"
+        fi
       fi
       rm -f "$TMP_NVIM"
     else
