@@ -357,21 +357,39 @@ fi
 # ---------- Stow dotfiles ----------
 if run dotfiles; then
   log "Stowing dotfiles"
-  cd "$DOTFILES_DIR"
-  for pkg in "${STOW_PACKAGES[@]}"; do
-    if [[ ! -d "$pkg" ]]; then
-      warn "Skipping '$pkg' — not in repo"
-      continue
+
+  # stow may be missing if the packages section was skipped or its install
+  # failed (that step only warns). Try to install it once; if it's still
+  # unavailable, skip the whole section with a single clear message instead
+  # of failing on every package.
+  if ! command -v stow &>/dev/null; then
+    log "GNU stow not found — attempting to install it"
+    if [[ "$OS" == "Darwin" ]] && command -v brew &>/dev/null; then
+      brew install stow || true
+    elif [[ "$OS" == "Linux" ]]; then
+      sudo apt-get install -y stow || true
     fi
-    # Remove existing files so stow can place symlinks
-    while IFS= read -r src; do
-      rel="${src#$pkg/}"
-      target="$HOME/$rel"
-      [[ -e "$target" || -L "$target" ]] && rm -rf "$target"
-      mkdir -p "$(dirname "$target")"
-    done < <(find "$pkg" -mindepth 1 \( -type f -o -type l \))
-    stow -v --target="$HOME" "$pkg" && ok "Stowed $pkg" || warn "Failed to stow $pkg"
-  done
+  fi
+
+  if ! command -v stow &>/dev/null; then
+    warn "GNU stow is not installed — skipping dotfiles. Install it and re-run: (Linux) sudo apt-get install stow  •  (macOS) brew install stow"
+  else
+    cd "$DOTFILES_DIR"
+    for pkg in "${STOW_PACKAGES[@]}"; do
+      if [[ ! -d "$pkg" ]]; then
+        warn "Skipping '$pkg' — not in repo"
+        continue
+      fi
+      # Remove existing files so stow can place symlinks
+      while IFS= read -r src; do
+        rel="${src#$pkg/}"
+        target="$HOME/$rel"
+        [[ -e "$target" || -L "$target" ]] && rm -rf "$target"
+        mkdir -p "$(dirname "$target")"
+      done < <(find "$pkg" -mindepth 1 \( -type f -o -type l \))
+      stow -v --target="$HOME" "$pkg" && ok "Stowed $pkg" || warn "Failed to stow $pkg"
+    done
+  fi
 fi
 
 # ──────────────────────────────────────────────
