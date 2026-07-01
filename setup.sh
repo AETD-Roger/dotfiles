@@ -194,11 +194,24 @@ elif [[ "$OS" == "Linux" ]]; then
     # ---------- apt packages ----------
     log "Updating apt and installing base packages"
     sudo apt-get update -qq || warn "apt-get update failed"
-    sudo apt-get install -y \
-      zsh git curl wget unzip stow tmux build-essential nano \
-      ripgrep fd-find fzf bat \
-      fontconfig software-properties-common ca-certificates gpg \
-      || warn "Some apt packages may have failed"
+
+    # Install as one batch first (fast), but fall back to per-package installs
+    # if that fails. A single unavailable package (one that doesn't exist on
+    # this Debian/Ubuntu release) otherwise aborts the whole batch and leaves
+    # essentials like zsh, unzip and fontconfig uninstalled.
+    APT_PKGS=(
+      zsh git curl wget unzip stow tmux build-essential nano
+      ripgrep fd-find fzf bat
+      fontconfig ca-certificates gpg
+    )
+    if ! sudo apt-get install -y "${APT_PKGS[@]}"; then
+      warn "Batch apt install failed — retrying each package individually"
+      apt_failed=()
+      for p in "${APT_PKGS[@]}"; do
+        sudo apt-get install -y "$p" >/dev/null 2>&1 || apt_failed+=("$p")
+      done
+      [[ ${#apt_failed[@]} -gt 0 ]] && warn "Could not install: ${apt_failed[*]}"
+    fi
     sudo apt-get install -y libfuse2 2>/dev/null \
       || sudo apt-get install -y libfuse2t64 2>/dev/null \
       || warn "libfuse2 not available — neovim appimage may not work"
