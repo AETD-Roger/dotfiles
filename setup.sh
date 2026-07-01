@@ -290,18 +290,57 @@ elif [[ "$OS" == "Linux" ]]; then
     fi
 
     # ---------- Neovim (need 0.10+ for AstroNvim v4) ----------
+    # Install a Neovim AppImage to /opt/nvim by extracting it — works without
+    # FUSE, which many headless/minimal servers lack. --appimage-extract does
+    # not need FUSE. Arg: path to the AppImage. Returns non-zero on failure.
+    extract_nvim_appimage() {
+      local img="$1" dir
+      dir=$(mktemp -d)
+      if ( cd "$dir" && "$img" --appimage-extract &>/dev/null ) \
+          && [[ -x "$dir/squashfs-root/AppRun" ]]; then
+        sudo rm -rf /opt/nvim
+        sudo mv "$dir/squashfs-root" /opt/nvim
+        sudo ln -sf /opt/nvim/AppRun /usr/local/bin/nvim
+        rm -rf "$dir"; return 0
+      fi
+      rm -rf "$dir"; return 1
+    }
+
     need_nvim=true
     if command -v nvim &>/dev/null; then
-      ver=$(nvim --version | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1 || echo "0.0")
+      # Suppress stderr — a FUSE-less AppImage prints "$FUSERMOUNT_PROG not
+      # set" here, which would otherwise leave ver empty and force a reinstall.
+      ver=$(nvim --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1 || echo "0.0")
       major=${ver%.*}; minor=${ver#*.}
       if (( major > 0 || (major == 0 && minor >= 10) )); then need_nvim=false; fi
     fi
     if $need_nvim; then
       log "Installing latest Neovim (appimage)"
-      sudo curl -sSfL -o /usr/local/bin/nvim \
-        "https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.appimage" \
-        && sudo chmod +x /usr/local/bin/nvim \
-        || warn "Failed to install Neovim"
+      TMP_NVIM=$(mktemp --suffix=.appimage)
+      if sudo curl -sSfL -o "$TMP_NVIM" \
+          "https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.appimage"; then
+        sudo chmod +x "$TMP_NVIM"
+        if "$TMP_NVIM" --version &>/dev/null; then
+          # FUSE works — install the AppImage directly.
+          sudo mv "$TMP_NVIM" /usr/local/bin/nvim && sudo chmod +x /usr/local/bin/nvim \
+            && ok "Neovim installed" || warn "Failed to install Neovim"
+        elif extract_nvim_appimage "$TMP_NVIM"; then
+          ok "Neovim installed (extracted, FUSE-free)"
+        else
+          warn "Failed to install Neovim — AppImage extraction failed"
+        fi
+      else
+        # Download failed (e.g. GitHub unreachable on this network). If a raw
+        # AppImage is already installed, extract it so nvim works without FUSE
+        # instead of leaving the broken binary in place.
+        if [[ -f /usr/local/bin/nvim && ! -L /usr/local/bin/nvim ]] \
+            && extract_nvim_appimage /usr/local/bin/nvim; then
+          ok "Neovim download failed — extracted the existing AppImage instead"
+        else
+          warn "Failed to download Neovim"
+        fi
+      fi
+      rm -f "$TMP_NVIM"
     else
       ok "Neovim already installed (0.10+)"
     fi
