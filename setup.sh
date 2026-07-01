@@ -194,11 +194,24 @@ elif [[ "$OS" == "Linux" ]]; then
     # ---------- apt packages ----------
     log "Updating apt and installing base packages"
     sudo apt-get update -qq || warn "apt-get update failed"
-    sudo apt-get install -y \
-      zsh git curl wget unzip stow tmux build-essential nano \
-      ripgrep fd-find fzf bat \
-      fontconfig software-properties-common ca-certificates gpg \
-      || warn "Some apt packages may have failed"
+
+    # Install as one batch first (fast), but fall back to per-package installs
+    # if that fails. A single unavailable package (one that doesn't exist on
+    # this Debian/Ubuntu release) otherwise aborts the whole batch and leaves
+    # essentials like zsh, unzip and fontconfig uninstalled.
+    APT_PKGS=(
+      zsh git curl wget unzip stow tmux build-essential nano
+      ripgrep fd-find fzf bat
+      fontconfig ca-certificates gpg
+    )
+    if ! sudo apt-get install -y "${APT_PKGS[@]}"; then
+      warn "Batch apt install failed — retrying each package individually"
+      apt_failed=()
+      for p in "${APT_PKGS[@]}"; do
+        sudo apt-get install -y "$p" >/dev/null 2>&1 || apt_failed+=("$p")
+      done
+      [[ ${#apt_failed[@]} -gt 0 ]] && warn "Could not install: ${apt_failed[*]}"
+    fi
     sudo apt-get install -y libfuse2 2>/dev/null \
       || sudo apt-get install -y libfuse2t64 2>/dev/null \
       || warn "libfuse2 not available — neovim appimage may not work"
@@ -211,15 +224,29 @@ elif [[ "$OS" == "Linux" ]]; then
     # ---------- eza ----------
     if ! command -v eza &>/dev/null; then
       log "Installing eza"
+      eza_ok=false
       sudo mkdir -p /etc/apt/keyrings
       if wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc \
           | sudo gpg --dearmor -o /etc/apt/keyrings/gierens.gpg 2>/dev/null; then
         echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de stable main" \
           | sudo tee /etc/apt/sources.list.d/gierens.list >/dev/null
         sudo chmod 644 /etc/apt/keyrings/gierens.gpg /etc/apt/sources.list.d/gierens.list
-        sudo apt-get update -qq && sudo apt-get install -y eza || warn "Failed to install eza"
-      else
-        warn "Failed to install eza — GPG key download failed"
+        sudo apt-get update -qq && sudo apt-get install -y eza && eza_ok=true
+      fi
+      if ! $eza_ok; then
+        # Fall back to the prebuilt release binary — works when the apt repo or
+        # its GPG key can't be reached (e.g. behind a restrictive proxy).
+        log "Falling back to eza release binary"
+        mkdir -p "$HOME/.local/bin"
+        TMP_EZA=$(mktemp --suffix=.tar.gz)
+        if curl -sSfL -o "$TMP_EZA" \
+            "https://github.com/eza-community/eza/releases/latest/download/eza_x86_64-unknown-linux-gnu.tar.gz" \
+            && tar -xzf "$TMP_EZA" -C "$HOME/.local/bin" eza 2>/dev/null; then
+          ok "eza installed to ~/.local/bin"
+        else
+          warn "Failed to install eza — apt repo and binary download both failed"
+        fi
+        rm -f "$TMP_EZA"
       fi
     else
       ok "eza already installed"
@@ -318,7 +345,13 @@ fi
 
 # ---------- Oh My Zsh + plugins ----------
 if run shell; then
-  if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
+  # Check for the core script, not just the directory — a failed/partial
+  # install can leave an empty ~/.oh-my-zsh that would otherwise be mistaken
+  # for a complete install (and then .zshrc fails sourcing oh-my-zsh.sh).
+  if [[ ! -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]]; then
+    # The installer refuses to run if the directory already exists, so clear
+    # a partial one first.
+    [[ -d "$HOME/.oh-my-zsh" ]] && rm -rf "$HOME/.oh-my-zsh"
     log "Installing Oh My Zsh"
     RUNZSH=no CHSH=no KEEP_ZSHRC=yes \
       sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" \
@@ -357,21 +390,39 @@ fi
 # ---------- Stow dotfiles ----------
 if run dotfiles; then
   log "Stowing dotfiles"
-  cd "$DOTFILES_DIR"
-  for pkg in "${STOW_PACKAGES[@]}"; do
-    if [[ ! -d "$pkg" ]]; then
-      warn "Skipping '$pkg' — not in repo"
-      continue
+
+  # stow may be missing if the packages section was skipped or its install
+  # failed (that step only warns). Try to install it once; if it's still
+  # unavailable, skip the whole section with a single clear message instead
+  # of failing on every package.
+  if ! command -v stow &>/dev/null; then
+    log "GNU stow not found — attempting to install it"
+    if [[ "$OS" == "Darwin" ]] && command -v brew &>/dev/null; then
+      brew install stow || true
+    elif [[ "$OS" == "Linux" ]]; then
+      sudo apt-get install -y stow || true
     fi
-    # Remove existing files so stow can place symlinks
-    while IFS= read -r src; do
-      rel="${src#$pkg/}"
-      target="$HOME/$rel"
-      [[ -e "$target" || -L "$target" ]] && rm -rf "$target"
-      mkdir -p "$(dirname "$target")"
-    done < <(find "$pkg" -mindepth 1 \( -type f -o -type l \))
-    stow -v --target="$HOME" "$pkg" && ok "Stowed $pkg" || warn "Failed to stow $pkg"
-  done
+  fi
+
+  if ! command -v stow &>/dev/null; then
+    warn "GNU stow is not installed — skipping dotfiles. Install it and re-run: (Linux) sudo apt-get install stow  •  (macOS) brew install stow"
+  else
+    cd "$DOTFILES_DIR"
+    for pkg in "${STOW_PACKAGES[@]}"; do
+      if [[ ! -d "$pkg" ]]; then
+        warn "Skipping '$pkg' — not in repo"
+        continue
+      fi
+      # Remove existing files so stow can place symlinks
+      while IFS= read -r src; do
+        rel="${src#$pkg/}"
+        target="$HOME/$rel"
+        [[ -e "$target" || -L "$target" ]] && rm -rf "$target"
+        mkdir -p "$(dirname "$target")"
+      done < <(find "$pkg" -mindepth 1 \( -type f -o -type l \))
+      stow -v --target="$HOME" "$pkg" && ok "Stowed $pkg" || warn "Failed to stow $pkg"
+    done
+  fi
 fi
 
 # ──────────────────────────────────────────────
