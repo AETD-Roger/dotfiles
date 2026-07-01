@@ -224,15 +224,29 @@ elif [[ "$OS" == "Linux" ]]; then
     # ---------- eza ----------
     if ! command -v eza &>/dev/null; then
       log "Installing eza"
+      eza_ok=false
       sudo mkdir -p /etc/apt/keyrings
       if wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc \
           | sudo gpg --dearmor -o /etc/apt/keyrings/gierens.gpg 2>/dev/null; then
         echo "deb [signed-by=/etc/apt/keyrings/gierens.gpg] http://deb.gierens.de stable main" \
           | sudo tee /etc/apt/sources.list.d/gierens.list >/dev/null
         sudo chmod 644 /etc/apt/keyrings/gierens.gpg /etc/apt/sources.list.d/gierens.list
-        sudo apt-get update -qq && sudo apt-get install -y eza || warn "Failed to install eza"
-      else
-        warn "Failed to install eza — GPG key download failed"
+        sudo apt-get update -qq && sudo apt-get install -y eza && eza_ok=true
+      fi
+      if ! $eza_ok; then
+        # Fall back to the prebuilt release binary — works when the apt repo or
+        # its GPG key can't be reached (e.g. behind a restrictive proxy).
+        log "Falling back to eza release binary"
+        mkdir -p "$HOME/.local/bin"
+        TMP_EZA=$(mktemp --suffix=.tar.gz)
+        if curl -sSfL -o "$TMP_EZA" \
+            "https://github.com/eza-community/eza/releases/latest/download/eza_x86_64-unknown-linux-gnu.tar.gz" \
+            && tar -xzf "$TMP_EZA" -C "$HOME/.local/bin" eza 2>/dev/null; then
+          ok "eza installed to ~/.local/bin"
+        else
+          warn "Failed to install eza — apt repo and binary download both failed"
+        fi
+        rm -f "$TMP_EZA"
       fi
     else
       ok "eza already installed"
@@ -331,7 +345,13 @@ fi
 
 # ---------- Oh My Zsh + plugins ----------
 if run shell; then
-  if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
+  # Check for the core script, not just the directory — a failed/partial
+  # install can leave an empty ~/.oh-my-zsh that would otherwise be mistaken
+  # for a complete install (and then .zshrc fails sourcing oh-my-zsh.sh).
+  if [[ ! -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]]; then
+    # The installer refuses to run if the directory already exists, so clear
+    # a partial one first.
+    [[ -d "$HOME/.oh-my-zsh" ]] && rm -rf "$HOME/.oh-my-zsh"
     log "Installing Oh My Zsh"
     RUNZSH=no CHSH=no KEEP_ZSHRC=yes \
       sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" \

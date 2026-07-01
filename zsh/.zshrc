@@ -21,7 +21,9 @@ else
   plugins=(git tmux zsh-autosuggestions zsh-syntax-highlighting)
 fi
 
-source "$ZSH/oh-my-zsh.sh"
+# Only source if actually installed — a missing/partial install shouldn't
+# spew errors on every shell launch.
+[[ -f "$ZSH/oh-my-zsh.sh" ]] && source "$ZSH/oh-my-zsh.sh"
 
 # Editor
 export EDITOR='nvim'
@@ -32,12 +34,18 @@ eval "$(starship init zsh)"
 # Smarter cd
 eval "$(zoxide init zsh)"
 
-# Modern CLI replacements
-alias ls='eza --icons --group-directories-first'
-alias ll='eza -lah --icons --group-directories-first'
-alias la='eza -a --icons --group-directories-first'
-alias tree='eza --tree --icons'
-alias cat='bat --paging=never'
+# Modern CLI replacements — only alias if the tool is installed, otherwise
+# fall back to built-ins so a failed/skipped install doesn't break ls/ll/cat.
+if command -v eza >/dev/null; then
+  alias ls='eza --icons --group-directories-first'
+  alias ll='eza -lah --icons --group-directories-first'
+  alias la='eza -a --icons --group-directories-first'
+  alias tree='eza --tree --icons'
+else
+  alias ll='ls -lah'
+  alias la='ls -A'
+fi
+command -v bat >/dev/null && alias cat='bat --paging=never'
 alias vi='nvim'
 
 # fzf key bindings & completion
