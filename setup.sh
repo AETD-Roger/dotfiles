@@ -290,12 +290,30 @@ elif [[ "$OS" == "Linux" ]]; then
     fi
 
     # ---------- Neovim (need 0.10+ for AstroNvim v4) ----------
+    # Pick a scratch dir with at least the given free space (in MB). mktemp
+    # defaults to /tmp, which on minimal servers is often a small (or full)
+    # tmpfs — curl then dies mid-download with "(23) client returned ERROR
+    # on write". Arg: required free MB. Prints the dir; non-zero if none fit.
+    scratch_dir_with_space() {
+      local need_mb="$1" dir avail
+      for dir in "${TMPDIR:-/tmp}" "$HOME/.cache" "$HOME"; do
+        mkdir -p "$dir" 2>/dev/null
+        [[ -d "$dir" && -w "$dir" ]] || continue
+        avail=$(df -Pm "$dir" 2>/dev/null | awk 'NR==2 {print $4}')
+        if [[ -n "$avail" ]] && (( avail >= need_mb )); then
+          echo "$dir"; return 0
+        fi
+      done
+      return 1
+    }
+
     # Install a Neovim AppImage to /opt/nvim by extracting it — works without
     # FUSE, which many headless/minimal servers lack. --appimage-extract does
     # not need FUSE. Arg: path to the AppImage. Returns non-zero on failure.
     extract_nvim_appimage() {
-      local img="$1" dir
-      dir=$(mktemp -d)
+      local img="$1" dir base
+      base=$(scratch_dir_with_space 100) || return 1
+      dir=$(mktemp -d -p "$base")
       if ( cd "$dir" && "$img" --appimage-extract &>/dev/null ) \
           && [[ -x "$dir/squashfs-root/AppRun" ]]; then
         sudo rm -rf /opt/nvim
@@ -316,10 +334,13 @@ elif [[ "$OS" == "Linux" ]]; then
     fi
     if $need_nvim; then
       log "Installing latest Neovim (appimage)"
-      TMP_NVIM=$(mktemp --suffix=.appimage)
-      if sudo curl -sSfL -o "$TMP_NVIM" \
+      TMP_NVIM=""
+      # ~15 MB download, plus ~60 MB more if FUSE-free extraction is needed.
+      if ! SCRATCH=$(scratch_dir_with_space 100); then
+        warn "Failed to install Neovim — less than 100 MB free in ${TMPDIR:-/tmp}, ~/.cache, and ~; free up disk space and re-run"
+      elif TMP_NVIM=$(mktemp -p "$SCRATCH" --suffix=.appimage) && curl -sSfL -o "$TMP_NVIM" \
           "https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.appimage"; then
-        sudo chmod +x "$TMP_NVIM"
+        chmod +x "$TMP_NVIM"
         if "$TMP_NVIM" --version &>/dev/null; then
           # FUSE works — install the AppImage directly.
           sudo mv "$TMP_NVIM" /usr/local/bin/nvim && sudo chmod +x /usr/local/bin/nvim \
@@ -340,7 +361,7 @@ elif [[ "$OS" == "Linux" ]]; then
           warn "Failed to download Neovim"
         fi
       fi
-      rm -f "$TMP_NVIM"
+      [[ -n "$TMP_NVIM" ]] && rm -f "$TMP_NVIM"
     else
       ok "Neovim already installed (0.10+)"
     fi
